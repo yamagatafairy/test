@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>電験三種 過去問トラッカー（残問題管理）</title>
+<style>
+  :root{
+    --bg:#0f1220; --panel:#171a2b; --ink:#eef1ff; --muted:#aeb5d8;
+    --accent:#5dd0ff; --good:#24d170; --warn:#ffc857; --bad:#ff6b6b;
+    --chip:#232746; --chip-on:#2c315b; --border:#2b3052; --btn:#22264a; --btn-h:#2a2f5c;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; color:var(--ink); background:linear-gradient(180deg,#0e1020,#0a0d1a 60%,#070912);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Hiragino Kaku Gothic ProN",Meiryo,sans-serif;}
+  header{position:sticky; top:0; z-index:5; background:rgba(15,18,32,.9); backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--border);}
+  .wrap{max-width:1200px; margin:0 auto; padding:12px 16px;}
+  h1{font-size:20px; margin:0}
+  .subtitle{font-size:12px; color:var(--muted)}
+  .grid{display:grid; gap:12px}
+  .panel{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:14px; box-shadow:0 10px 30px rgba(0,0,0,.25)}
+  .bar{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+  .chip{padding:6px 10px; border-radius:999px; background:var(--chip); border:1px solid var(--border); cursor:pointer; font-size:13px}
+  .chip.on{background:var(--chip-on); outline:1px solid var(--accent)}
+  .btn{background:var(--btn); border:1px solid var(--border); color:var(--ink); padding:8px 10px; border-radius:8px; cursor:pointer; font-size:13px}
+  .btn:hover{background:var(--btn-h)}
+  .btn.good{background:linear-gradient(90deg,#18bb6f,#20d789); border:none}
+  .btn.warn{background:linear-gradient(90deg,#ffb347,#ffd452); border:none; color:#111}
+  .btn.bad{background:linear-gradient(90deg,#ff5f73,#ff7a6b); border:none}
+  input, select{background:#0f132a; color:var(--ink); border:1px solid var(--border); border-radius:8px; padding:6px 8px}
+  .stat{background:#12152a; border:1px solid var(--border); padding:6px 10px; border-radius:8px; color:var(--muted); font-size:13px}
+  .stat b{color:var(--ink)}
+  .row{display:flex; gap:10px; align-items:center; padding:10px; border:1px solid var(--border); border-radius:10px; background:#141832}
+  .row .meta{flex:1}
+  .badge{display:inline-block; padding:3px 8px; border:1px solid var(--border); border-radius:999px; font-size:12px; background:#12173a; color:var(--muted); margin-right:6px}
+  .list{display:grid; gap:8px}
+  canvas{width:100%; height:280px; background:#0f132a; border:1px solid var(--border); border-radius:10px}
+  .graphs{display:grid; grid-template-columns:1fr 1fr; gap:20px}
+  @media(max-width:900px){ .graphs{grid-template-columns:1fr} }
+  footer{color:var(--muted); font-size:12px; padding:16px 0; text-align:center}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="bar">
+      <div>
+        <h1>電験三種 過去問トラッカー</h1>
+        <div class="subtitle">誤答・要復習のみ登録 → 進捗と残数をグラフで可視化</div>
+      </div>
+      <div class="right bar">
+        <button class="btn small" id="btnExport">エクスポート</button>
+        <label class="btn small">インポート<input id="fileImport" type="file" accept="application/json" hidden></label>
+        <button class="btn small warn" id="btnReset">全削除</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap grid" style="margin-top:12px">
+  <!-- フィルタ＆登録 -->
+  <section class="panel">
+    <div class="bar">
+      <div class="chip on" data-filter="pending">残</div>
+      <div class="chip" data-filter="done">完了</div>
+      <div class="chip" data-filter="all">すべて</div>
+
+      <select id="fEra"><option value="ALL">全元号</option><option>令和</option><option>平成</option></select>
+      <input id="fYear" type="number" placeholder="年で絞り込む" style="width:120px">
+      <select id="fTerm"><option value="ALL">全期</option><option>上期</option><option>下期</option><option>通年</option></select>
+      <select id="fSubject"><option value="ALL">全科目</option><option>理論</option><option>電力</option><option>機械</option><option>法規</option></select>
+      <input id="fQuery" type="search" placeholder="検索">
+      <button class="btn" id="btnClearFilter">解除</button>
+
+      <div class="right bar">
+        <div class="stat">残 <b id="statRemain">0</b></div>
+        <div class="stat">完了 <b id="statDone">0</b></div>
+        <div class="stat">合計 <b id="statTotal">0</b></div>
+      </div>
+    </div>
+
+    <div class="bar" style="margin-top:8px">
+      <select id="era"><option>令和</option><option>平成</option></select>
+      <input id="year" type="number" min="1" placeholder="年">
+      <select id="term"><option>上期</option><option>下期</option><option>通年</option></select>
+      <select id="subject"><option>理論</option><option>電力</option><option>機械</option><option>法規</option></select>
+      <input id="qno" type="text" placeholder="問番号/ラベル">
+      <button class="btn good" id="btnAdd">＋登録</button>
+    </div>
+  </section>
+
+  <!-- リスト -->
+  <section class="panel">
+    <div class="bar" style="margin-bottom:8px">
+      <div class="muted">登録した誤答のみを管理。解けたら ✓ で完了。</div>
+      <div class="right bar">
+        <button class="btn small good" id="btnBulkDone">一括✓</button>
+        <button class="btn small bad" id="btnBulkDelete">一括削除</button>
+      </div>
+    </div>
+    <div id="list" class="list"></div>
+  </section>
+
+  <!-- グラフ -->
+  <section class="panel">
+    <h3>📊 残数グラフ</h3>
+    <div class="graphs" style="margin-top:10px">
+      <div>
+        <div class="muted">科目別 残数</div>
+        <canvas id="chartSubject"></canvas>
+      </div>
+      <div>
+        <div class="muted">年度別 残数</div>
+        <canvas id="chartYear"></canvas>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>© 過去問トラッカー | データは端末(localStorage)に保存されます</footer>
+
+<script>
+"use strict";
+const LS_KEY="denken3_past_tracker_v3";
+function load(){try{return JSON.parse(localStorage.getItem(LS_KEY))||[]}catch{return []}}
+function save(a){localStorage.setItem(LS_KEY,JSON.stringify(a))}
+let ITEMS=load();let FILTER="pending";
+const $=s=>document.querySelector(s), $$=s=>Array.from(document.querySelectorAll(s));
+function makeId(e,y,t,s,q){return `${e}${y}${t}-${s}-${q}`;}
+function normalizedYear(e,y){const base=e==="令和"?2018:1988;return base+(+y||0);}
+function fmtLabel(e,y,t){return `${e}${y}${t}`;}
+function addItem(){const era=$("#era").value,year=parseInt($("#year").value||"",10),term=$("#term").value,subject=$("#subject").value,q=$("#qno").value.trim();if(!year||!q){alert("年と問番号を入力");return}const id=makeId(era,year,term,subject,q);if(ITEMS.some(x=>x.id===id)){alert("既にあります");return}ITEMS.push({id,era,year,term,subject,q,status:"pending",ts:Date.now()});save(ITEMS);$("#qno").value="";render();}
+function toggleStatus(id){ITEMS=ITEMS.map(x=>x.id===id?{...x,status:x.status==="pending"?"done":"pending"}:x);save(ITEMS);render();}
+function removeItem(id){if(!confirm("削除?"))return;ITEMS=ITEMS.filter(x=>x.id!==id);save(ITEMS);render();}
+function getFiltered(){const era=$("#fEra").value,y=$("#fYear").value.trim(),term=$("#fTerm").value,subj=$("#fSubject").value,q=($("#fQuery").value||"").toLowerCase();return ITEMS.filter(x=>{if(FILTER!=="all"&&x.status!==FILTER)return false;if(era!=="ALL"&&x.era!==era)return false;if(y&&String(x.year)!==y)return false;if(term!=="ALL"&&x.term!==term)return false;if(subj!=="ALL"&&x.subject!==subj)return false;if(q){const txt=`${x.id} ${x.q} ${x.subject} ${x.era}${x.year}${x.term}`.toLowerCase();if(!txt.includes(q))return false}return true}).sort((a,b)=>a.ts-b.ts);}
+function renderList(){const list=$("#list");list.innerHTML="";getFiltered().forEach(x=>{const row=document.createElement("div");row.className="row";row.innerHTML=`<div class="meta"><span class="badge">${x.era}${x.year}${x.term}</span><span class="badge">${x.subject}</span><span class="badge">${x.q}</span></div>`;const btn=document.createElement("button");btn.className="btn small "+(x.status==="pending"?"good":"warn");btn.textContent=x.status==="pending"?"✓":"↺";btn.onclick=()=>toggleStatus(x.id);const del=document.createElement("button");del.className="btn small bad";del.textContent="削除";del.onclick=()=>removeItem(x.id);row.append(btn,del);list.append(row)});}
+function renderStats(){const all=getFiltered();const total=all.length,done=all.filter(x=>x.status==="done").length,remain=total-done;$("#statTotal").textContent=total;$("#statDone").textContent=done;$("#statRemain").textContent=remain;}
+function drawChart(canvas,labels,values){const ctx=canvas.getContext("2d"),dpr=window.devicePixelRatio||1,rect=canvas.getBoundingClientRect();canvas.width=rect.width*dpr;canvas.height=rect.height*dpr;const pad={l:40*dpr,r:10*dpr,t:20*dpr,b:30*dpr},W=canvas.width,H=canvas.height,w=W-pad.l-pad.r,h=H-pad.t-pad.b;ctx.clearRect(0,0,W,H);ctx.strokeStyle="#3a4270";ctx.beginPath();ctx.moveTo(pad.l,pad.t);ctx.lineTo(pad.l,pad.t+h);ctx.lineTo(pad.l+w,pad.t+h);ctx.stroke();const max=Math.max(1,...values),barW=w/(labels.length*1.6),gap=barW*0.6;labels.forEach((lab,i)=>{const val=values[i],bh=(val/max)*h,x=pad.l+i*(barW+gap)+gap,y=pad.t+h-bh;ctx.fillStyle="#24d170";ctx.fillRect(x,y,barW,bh);ctx.fillStyle="#aeb5d8";ctx.textAlign="center";ctx.fillText(lab,x+barW/2,pad.t+h+16*dpr);if(val>0){ctx.fillStyle="#eef1ff";ctx.fillText(val,x+barW/2,y-6*dpr)}});}
+function renderCharts(){const data=getFiltered().filter(x=>x.status==="pending");const subj=["理論","電力","機械","法規"],subjVals=subj.map(s=>data.filter(x=>x.subject===s).length);drawChart($("#chartSubject"),subj,subjVals);const map=new Map();data.forEach(x=>{const label=fmtLabel(x.era,x.year,x.term);map.set(label,(map.get(label)||0)+1)});const order=Array.from(map.keys()).sort((A,B)=>{const p=s=>{const m=s.match(/(令和|平成)(\d+)(上期|下期|通年)/);if(!m)return{y:0,t:0};const y=normalizedYear(m[1],+m[2]);const t=m[3]==="上期"?0:m[3]==="下期"?1:2;return{y,t}};const a=p(A),b=p(B);return a.y===b.y?a.t-b.t:a.y-b.y});const vals=order.map(k=>map.get(k));drawChart($("#chartYear"),order,vals);}
+function render(){renderList();renderStats();renderCharts();}
+$("#btnAdd").onclick=addItem;$$('[data-filter]').forEach(ch=>ch.onclick=()=>{FILTER=ch.dataset.filter;$$('[data-filter]').forEach(c=>c.classList.remove("on"));ch.classList.add("on");render()});$("#fEra").onchange=render;$("#fYear").oninput=render;$("#fTerm").onchange=render;$("#fSubject").onchange=render;$("#fQuery").oninput=render;$("#btnClearFilter").onclick=()=>{$("#fEra").value="ALL";$("#fYear").value="";$("#fTerm").value="ALL";$("#fSubject").value="ALL";$("#fQuery").value="";FILTER="pending";$$('[data-filter]').forEach(c=>c.classList.remove("on"));$$('[data-filter][data-filter=pending]').classList?.add("on");render()};$("#btnBulkDone").onclick=()=>{ITEMS=getFiltered().map(x=>({...x,status:"done"}));save(ITEMS);render()};$("#btnBulkDelete").onclick=()=>{if(confirm("削除?")){const ids=new Set(getFiltered().map(x=>x.id));ITEMS=ITEMS.filter(x=>!ids.has(x.id));save(ITEMS);render()}};$("#btnExport").onclick=()=>{const blob=new Blob([JSON.stringify({items:ITEMS},null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="past_tracker.json";a.click();URL.revokeObjectURL(url)};$("#fileImport").onchange=e=>{const f=e.target.files?.[0];if(!f)return;f.text().then(t=>{try{const d=JSON.parse(t);if(Array.isArray(d))ITEMS=d;else if(d.items)ITEMS=d.items;save(ITEMS);render()}catch{alert("形式不正")}})};$("#btnReset").onclick=()=>{if(confirm("全削除?")){ITEMS=[];save(ITEMS);render()}};window.addEventListener("resize",renderCharts);render();
+</script>
+</body>
+</html>
